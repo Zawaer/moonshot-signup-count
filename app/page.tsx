@@ -2,7 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, Legend } from 'recharts';
-import { Analytics } from "@vercel/analytics/next"
+import { createClient } from '@supabase/supabase-js';
+
+// Initialize Supabase client
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 interface DataPoint {
   timestamp: string;
@@ -31,29 +36,29 @@ export default function Home() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const baseUrl = 'https://raw.githubusercontent.com/Zawaer/moonshot-signup-count/refs/heads/main/data.csv';
-        // Add a timestamp query param and no-store to avoid cached responses from the browser
-        const response = await fetch(`${baseUrl}?t=${Date.now()}`, { cache: 'no-store' });
-        const csvText = await response.text();
+        // Fetch data from Supabase
+        const { data: signupData, error } = await supabase
+          .from('signups')
+          .select('timestamp, count')
+          .order('timestamp', { ascending: true });
 
-        // Parse CSV safely (handle CRLF, empty lines)
-        const lines = csvText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-        const parsedData: DataPoint[] = [];
-
-        for (let i = 1; i < lines.length; i++) {
-          const parts = lines[i].split(',');
-          const timestamp = parts[0];
-          const countStr = parts[1];
-          if (timestamp && countStr) {
-            parsedData.push({
-              timestamp,
-              count: parseInt(countStr, 10)
-            });
-          }
+        if (error) {
+          console.error('Error fetching from Supabase:', error);
+          setLoading(false);
+          return;
         }
 
-        // Sort by timestamp to ensure the latest is at the end (guard against unordered CSV)
-        parsedData.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        if (!signupData || signupData.length === 0) {
+          console.error('No data returned from Supabase');
+          setLoading(false);
+          return;
+        }
+
+        // Transform the data to match our DataPoint interface
+        const parsedData: DataPoint[] = signupData.map((item) => ({
+          timestamp: item.timestamp,
+          count: item.count
+        }));
 
         setData(parsedData);
 
@@ -181,11 +186,10 @@ export default function Home() {
                   <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white">
                     Moonshot Signup Count
                   </h1>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Powered by real-time data tracking</p>
-                </div>
+                  </div>
               </div>
               <p className="text-base text-gray-600 dark:text-gray-400 mt-2">
-                Comprehensive signup tracking and growth projections for campaign optimization
+                Comprehensive signup tracking and growth projections
               </p>
             </div>
 
@@ -195,7 +199,7 @@ export default function Home() {
                 onClick={() => setShowDetails(!showDetails)}
                 className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
               >
-                {showDetails ? 'Hide Details' : 'Show Details'}
+                {showDetails ? 'Hide details' : 'Show details'}
               </button>
             </div>
           </div>
@@ -212,9 +216,9 @@ export default function Home() {
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-lg h-3 mb-3 overflow-hidden">
+              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-2xl h-6 mb-3 overflow-hidden">
                 <div
-                  className="bg-blue-600 h-3 rounded-lg transition-all duration-1000 ease-out flex items-center justify-end pr-2"
+                  className="bg-blue-600 h-6 rounded-lg transition-all duration-1000 ease-out flex items-center justify-end pr-2"
                   style={{ width: `${Math.min(percentage, 100)}%` }}
                 >
                   <span className="text-white text-[10px] font-semibold">{percentage.toFixed(1)}%</span>
@@ -237,7 +241,7 @@ export default function Home() {
           {/* Prediction Card */}
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-2xl shadow-lg p-8 text-white">
             <div className="mb-6">
-              <h3 className="text-xl font-semibold mb-1">Goal Projection</h3>
+              <h3 className="text-xl font-semibold mb-1">Goal projection</h3>
               <div className="h-px bg-white/20 w-16"></div>
             </div>
 
@@ -248,7 +252,7 @@ export default function Home() {
 
                 <div className="bg-white/10 rounded-xl p-6 backdrop-blur-sm border border-white/20">
                   <p className="text-5xl font-bold mb-2">{stats.daysRemaining}</p>
-                  <p className="text-sm opacity-90 uppercase tracking-wide">Days Remaining</p>
+                  <p className="text-sm opacity-90 uppercase tracking-wide">Days remaining</p>
                 </div>
 
                 {showDetails && (
@@ -277,7 +281,7 @@ export default function Home() {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
               <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Avg per Hour</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {stats?.averagePerHour.toFixed(1)}
+                {stats?.averagePerHour.toFixed(0)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Average signup rate</p>
             </div>
@@ -305,7 +309,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                Signup History
+                Signup history
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400">Historical trend analysis</p>
             </div>
@@ -321,7 +325,7 @@ export default function Home() {
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  24 Hours
+                  24 hours
                 </button>
                 <button
                   onClick={() => setTimeRange('7d')}
@@ -331,7 +335,7 @@ export default function Home() {
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  7 Days
+                  7 days
                 </button>
                 <button
                   onClick={() => setTimeRange('all')}
@@ -341,12 +345,12 @@ export default function Home() {
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  All Time
+                  All time
                 </button>
               </div>
 
               <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg font-medium">
-                {filteredData.length} points
+                {filteredData.length} records
               </span>
             </div>
           </div>
@@ -409,7 +413,7 @@ export default function Home() {
         {/* Additional Info Section */}
         {showDetails && (
           <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Key Insights</h3>
+            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Key insights</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="flex items-start gap-3">
                 <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -418,7 +422,7 @@ export default function Home() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Tracking Started</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Tracking started</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {data.length > 0 ? new Date(data[0].timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
                   </p>
@@ -432,9 +436,9 @@ export default function Home() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Campaign Status</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Campaign status</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {percentage >= 100 ? 'Completed' : percentage >= 80 ? 'Near Completion' : percentage >= 50 ? 'On Track' : 'In Progress'}
+                    {percentage >= 100 ? 'Completed' : percentage >= 80 ? 'Near completion' : percentage >= 50 ? 'On track' : 'In progress'}
                   </p>
                 </div>
               </div>
@@ -446,7 +450,7 @@ export default function Home() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Auto Refresh</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Auto refresh</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Every 60 seconds</p>
                 </div>
               </div>
@@ -454,7 +458,6 @@ export default function Home() {
           </div>
         )}
       </main>
-      <Analytics />
     </div>
   );
 }
