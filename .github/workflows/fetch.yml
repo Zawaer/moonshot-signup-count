@@ -26,7 +26,7 @@ jobs:
 
       - name: Run fetch script
         run: |
-          python app.py --once --csv-file data.csv --min-count 400
+          python app.py
 
       - name: Commit data.csv if changed (using PAT)
         env:
