@@ -4,10 +4,7 @@ permissions:
   contents: write
 
 on:
-  schedule:
-    # every 5 minutes
-    - cron: '*/5 * * * *'
-  workflow_dispatch: {}
+  workflow_dispatch: # allows manual/API trigger
 
 jobs:
   fetch-and-commit:
