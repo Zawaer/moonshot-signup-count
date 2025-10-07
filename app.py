@@ -43,20 +43,28 @@ def append_csv(path: str, timestamp: str, count: int) -> None:
 		w.writerow([timestamp, count])
 
 
-def do_fetch_and_store(csv_file: str, timeout: float, retries: int) -> int:
+def do_fetch_and_store(csv_file: str, timeout: float, retries: int, min_count: int = 0) -> int:
+	# Try fetching first; only append to CSV after a successful fetch.
 	for attempt in range(1, retries + 1):
 		try:
 			count = fetch_count(timeout=timeout)
-			ts = iso_utc_now()
-			append_csv(csv_file, ts, count)
-			print(f"{ts} {count} -> {csv_file}")
-			return 0
+			break
 		except Exception as err:
 			print(f"fetch attempt {attempt} failed: {err}", file=sys.stderr)
 			if attempt == retries:
 				print("all retries exhausted", file=sys.stderr)
 				return 2
 			time.sleep(1)
+
+	# If we get here, 'count' is available from a successful fetch.
+	if count < min_count:
+		print(f"{iso_utc_now()} fetched {count} < min_count ({min_count}); skipping write")
+		return 3
+
+	ts = iso_utc_now()
+	append_csv(csv_file, ts, count)
+	print(f"{ts} {count} -> {csv_file}")
+	return 0
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -66,6 +74,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 	p.add_argument("--csv-file", default="data.csv", help="CSV file to append to")
 	p.add_argument("--timeout", type=float, default=10.0, help="HTTP timeout in seconds")
 	p.add_argument("--retries", type=int, default=3, help="Number of fetch retries before failing")
+	p.add_argument("--min-count", type=int, default=0, help="Minimum count required to append to CSV")
 	args = p.parse_args(argv)
 
 	# default behavior: one-shot
@@ -73,14 +82,19 @@ def main(argv: Optional[list[str]] = None) -> int:
 		args.once = True
 
 	if args.once:
-		return do_fetch_and_store(args.csv_file, timeout=args.timeout, retries=args.retries)
+		return do_fetch_and_store(
+			args.csv_file, timeout=args.timeout, retries=args.retries, min_count=args.min_count
+		)
 
 	# loop mode
 	try:
 		while True:
-			code = do_fetch_and_store(args.csv_file, timeout=args.timeout, retries=args.retries)
+			code = do_fetch_and_store(
+				args.csv_file, timeout=args.timeout, retries=args.retries, min_count=args.min_count
+			)
 			if code != 0:
-				print("fetch failed; will retry after interval", file=sys.stderr)
+				# non-zero codes mean either fetch failure (2) or below-threshold (3)
+				print("fetch did not produce a writable value; will retry after interval", file=sys.stderr)
 			time.sleep(args.interval)
 	except KeyboardInterrupt:
 		print("stopping")

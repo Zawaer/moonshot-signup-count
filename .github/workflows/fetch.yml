@@ -2,8 +2,8 @@ name: Fetch moonshot count
 
 on:
   schedule:
-    # every hour at minute 0
-    - cron: '0 * * * *'
+    # every 5 minutes
+    - cron: '*/5 * * * *'
   workflow_dispatch: {}
 
 jobs:
@@ -23,7 +23,7 @@ jobs:
 
       - name: Run fetch script
         run: |
-          python app.py --once --csv-file data.csv
+          python app.py --once --csv-file data.csv --min-count 400
 
       - name: Commit data.csv if changed
         run: |
