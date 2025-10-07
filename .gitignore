@@ -1,0 +1,2 @@
+# we dont want to store the csv's locally
+*.csv
