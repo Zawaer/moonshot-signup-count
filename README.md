@@ -1,4 +1,4 @@
-# Moonshot Signup Count
+# Moonshot Signup Counter
 
 A real-time analytics dashboard for tracking Moonshot signup counts with comprehensive growth projections and historical trend analysis.
 
@@ -33,15 +33,15 @@ A real-time analytics dashboard for tracking Moonshot signup counts with compreh
 
 ## 📊 How It Works
 
-### Data Collection
-1. **Python Script** (`app.py`) - Polls the Moonshot stats API periodically
-2. **Data Storage** - Appends timestamped counts to `data.csv` in the repository
-3. **Automation** - GitHub Actions runs the script every 5 minutes automatically
-4. **Version Control** - All data is tracked and versioned in Git
+### Data Storage
+1. **Supabase Database** - Cloud-hosted PostgreSQL database for reliable data storage
+2. **Real-Time Updates** - Data is stored with timestamps
+3. **Scalable Architecture** - Handles high-frequency updates and queries efficiently
+4. **Secure Access** - Row Level Security (RLS) policies ensure data integrity
 
 ### Frontend Dashboard
 1. **Next.js App** - Modern React framework with App Router
-2. **Data Fetching** - Reads `data.csv` from GitHub raw URL with cache-busting
+2. **Supabase Client** - Direct database queries using `@supabase/supabase-js`
 3. **Real-Time Updates** - Auto-refreshes data every minute without page reload
 4. **Analytics Engine** - Calculates growth metrics, projections, and trends in real-time
 
@@ -54,16 +54,17 @@ A real-time analytics dashboard for tracking Moonshot signup counts with compreh
 - **Recharts** - Composable charting library
 - **Vercel Analytics** - Web analytics and performance monitoring
 
-### Backend
-- **Python 3.x** - Data collection script
-- **GitHub Actions** - Automated workflow scheduling
-- **CSV Storage** - Simple, version-controlled data storage
+### Backend & Database
+- **Supabase** - Backend-as-a-Service with PostgreSQL database
+- **@supabase/supabase-js** - Official Supabase JavaScript client
+- **Real-time subscriptions** - WebSocket support for live updates
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 - Node.js 20+ and npm
 - Git
+- Supabase account (free tier available)
 
 ### Installation
 
@@ -78,12 +79,25 @@ cd moonshot-signup-count
 npm install
 ```
 
-3. **Run development server**
+3. **Set up Supabase**
+   - Create a new project at [supabase.com](https://supabase.com)
+   - Create a `signups` table with columns: `id` (int8, primary key), `timestamp` (timestamptz), `count` (int8)
+   - Get your project URL and anon key from project settings
+
+4. **Configure environment variables**
+   
+   Create a `.env.local` file in the root directory:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+   ```
+
+5. **Run development server**
 ```bash
 npm run dev
 ```
 
-4. **Open in browser**
+6. **Open in browser**
 Navigate to [http://localhost:3000](http://localhost:3000)
 
 ### Production Build
@@ -102,8 +116,7 @@ moonshot-signup-count/
 │   ├── layout.tsx         # Root layout with metadata
 │   ├── globals.css        # Global styles and animations
 │   └── favicon.ico        # App icon
-├── app.py                 # Python data collection script
-├── data.csv              # Historical signup data
+├── .env.local            # Environment variables (not in git)
 ├── package.json          # Node dependencies
 ├── tsconfig.json         # TypeScript configuration
 ├── tailwind.config.js    # Tailwind CSS config
@@ -141,41 +154,56 @@ Modify the interval in the `useEffect` hook:
 const interval = setInterval(fetchData, 60000); // 60000ms = 1 minute
 ```
 
-### Update Data Source
-Change the CSV URL in `app/page.tsx`:
-```typescript
-const baseUrl = 'https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/data.csv';
+### Update Supabase Configuration
+Change the Supabase credentials in `.env.local`:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_new_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_new_anon_key
 ```
 
-## 🔄 Automated Data Collection
+## � Database Schema
 
-The Python script runs automatically via GitHub Actions every 5 minutes. The workflow:
-1. Fetches current signup count from API
-2. Appends timestamp and count to `data.csv`
-3. Commits and pushes changes to repository
-4. Dashboard automatically picks up new data on next refresh
+### Supabase Table: `signups`
+
+| Column    | Type        | Description                    |
+|-----------|-------------|--------------------------------|
+| id        | int8        | Primary key, auto-increment    |
+| timestamp | timestamptz | When the count was recorded    |
+| count     | int8        | Number of signups at timestamp |
+
+### Data Collection
+Data can be inserted into the Supabase database through:
+- Manual inserts via Supabase dashboard
+- API endpoints (requires authentication)
+- Scheduled jobs or webhooks
+- Third-party automation tools
 
 ## 🌐 Deployment
 
 ### Vercel (Recommended)
 1. Push your code to GitHub
 2. Import project in [Vercel](https://vercel.com)
-3. Deploy with one click
-4. Automatic deployments on every push
+3. Add environment variables in project settings:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+4. Deploy with one click
+5. Automatic deployments on every push
 
 ### Other Platforms
 - **Netlify** - Connect GitHub repo and deploy
 - **AWS Amplify** - Full-stack deployment
 - **Docker** - Containerize the Next.js app
 
-## 📝 Data Format
+## 📝 Environment Variables
 
-The `data.csv` file structure:
-```csv
-timestamp,count
-2025-01-01T12:00:00Z,1234
-2025-01-01T12:05:00Z,1235
-```
+Required environment variables in `.env.local`:
+
+| Variable                      | Description                           |
+|-------------------------------|---------------------------------------|
+| NEXT_PUBLIC_SUPABASE_URL      | Your Supabase project URL             |
+| NEXT_PUBLIC_SUPABASE_ANON_KEY | Your Supabase anonymous/public key    |
+
+**Note:** Never commit `.env.local` to version control. The file is already in `.gitignore`.
 
 ## 🤝 Contributing
 
@@ -189,19 +217,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 📄 License
 
-This project is open source and available under the [MIT License](LICENSE).
+This project is licensed under the MIT license.
 
 ## 🙏 Acknowledgments
 
 - Built with [Next.js](https://nextjs.org/)
+- Database powered by [Supabase](https://supabase.com/)
 - Charts powered by [Recharts](https://recharts.org/)
 - Styled with [Tailwind CSS](https://tailwindcss.com/)
 - Analytics by [Vercel Analytics](https://vercel.com/analytics)
-
-## 📧 Contact
-
-Project Link: [https://github.com/Zawaer/moonshot-signup-count](https://github.com/Zawaer/moonshot-signup-count)
-Project Link: [https://github.com/Stefanos0710/moonshot-signup-count](https://github.com/Stefanos0710/moonshot-signup-count)
----
-
-Made with ❤️ for tracking Moonshot signups
