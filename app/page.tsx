@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Analytics } from "@vercel/analytics/next"
 
 interface DataPoint {
   timestamp: string;
@@ -89,36 +88,42 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen p-8 flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-      <main className="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 md:p-12">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl md:text-7xl font-bold text-gray-800 dark:text-white mb-4">
-            Current signups
-          </h1>
-          <div className="text-8xl md:text-9xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400 mb-4">
-            {currentCount}
+    <div className="min-h-screen p-4 sm:p-8 flex flex-col items-center justify-start bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <main className="w-full max-w-4xl bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 sm:p-8 md:p-12">
+        <div className="flex items-start justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold text-gray-800 dark:text-white">
+              Current signups
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Live signup counter and history</p>
           </div>
-          <p className="text-lg text-gray-700 dark:text-gray-200 font-medium mb-1">{currentCount} out of {TARGET.toLocaleString()}</p>
-          <p className="text-lg text-gray-700 dark:text-gray-200 font-medium mb-3">We have {percentage.toFixed(1)}% of the required signups!</p>
-          <p className="text-xl text-gray-600 dark:text-gray-300">
-            Last updated: <span className="font-semibold">{lastUpdated}</span>
-          </p>
+          <div className="text-sm text-right">
+            <a className="text-blue-600 hover:underline" href="https://github.com/Zawaer/moonshot-signup-count" target="_blank" rel="noreferrer">View repo</a>
+          </div>
         </div>
 
-        <div className="mt-12">
-          <h2 className="text-2xl font-bold text-gray-800 dark:text-white mb-6 text-center">
-            Signup history
-          </h2>
-          <div className="w-full h-80">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+          <div className="flex-1 text-center sm:text-left">
+            <div className="text-6xl sm:text-8xl md:text-9xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
+              {currentCount}
+            </div>
+            <div className="mt-2">
+              <p className="text-base sm:text-lg text-gray-700 dark:text-gray-200 font-medium">{currentCount} out of {TARGET.toLocaleString()}</p>
+              <p className="text-base sm:text-lg text-gray-700 dark:text-gray-200 font-medium">We have {percentage.toFixed(1)}% of the required signups!</p>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-300 mt-2">Last updated: <span className="font-semibold">{lastUpdated}</span></p>
+            </div>
+          </div>
+
+          <div className="w-full sm:w-1/2 h-56 sm:h-72 md:h-80">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <LineChart data={data} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="timestamp" 
                   tickFormatter={formatTime}
-                  tick={{ fill: 'currentColor' }}
+                  tick={{ fill: 'currentColor', fontSize: 11 }}
                 />
-                <YAxis tick={{ fill: 'currentColor' }} />
+                <YAxis tick={{ fill: 'currentColor', fontSize: 11 }} />
                 <Tooltip 
                   labelFormatter={formatTime}
                   contentStyle={{ 
@@ -130,10 +135,10 @@ export default function Home() {
                 <Line 
                   type="monotone" 
                   dataKey="count" 
-                  stroke="#4F46E5" 
+                  stroke="#2563EB" 
                   strokeWidth={3}
-                  dot={{ fill: '#4F46E5', r: 4 }}
-                  activeDot={{ r: 6 }}
+                  dot={{ fill: '#2563EB', r: 4 }}
+                  activeDot={{ r: 6, stroke: '#2563EB', strokeWidth: 2 }}
                 />
               </LineChart>
             </ResponsiveContainer>
