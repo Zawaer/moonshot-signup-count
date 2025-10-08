@@ -34,7 +34,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
   const [timeRange, setTimeRange] = useState<'all' | '7d' | '24h'>('all');
-  const TARGET = 5000; // Goal
+  const TARGET_SIGNUPS = 5000;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -94,7 +94,7 @@ export default function Home() {
               : 0;
 
             // Estimate completion date
-            const remaining = TARGET - latest.count;
+            const remaining = TARGET_SIGNUPS - latest.count;
             let estimatedCompletion = null;
             let daysRemaining = 0;
 
@@ -181,7 +181,7 @@ export default function Home() {
     });
   };
 
-  const percentage = TARGET > 0 ? (currentCount / TARGET) * 100 : 0;
+  const percentage = TARGET_SIGNUPS > 0 ? (currentCount / TARGET_SIGNUPS) * 100 : 0;
 
   // Filter data based on time range
   const getFilteredData = () => {
@@ -334,7 +334,7 @@ export default function Home() {
 
               <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-4">
                 <span>0</span>
-                <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET.toLocaleString()}</span>
+                <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS.toLocaleString()}</span>
               </div>
 
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -401,7 +401,7 @@ export default function Home() {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
               <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Remaining</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {(TARGET - currentCount).toLocaleString()}
+                {(TARGET_SIGNUPS - currentCount).toLocaleString()}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">To reach target</p>
             </div>
@@ -491,14 +491,15 @@ export default function Home() {
                     const p = chartData[i];
                     return p ? formatTime(p.timestamp) : '';
                   }}
-                  formatter={(value: any, name: any, props: any) => {
+                  formatter={(value: unknown, name: unknown, props: unknown) => {
                     if (value === null || value === undefined) {
                       // props.label is the index
-                      const idx = Number(props?.label);
+                      const p = props as { label?: number } | undefined;
+                      const idx = Number(p?.label ?? NaN);
                       const interp = interpolateAtIndex(idx);
                       return interp === null ? ['No data', 'Count'] : [interp.toLocaleString(), 'Count'];
                     }
-                    return [Number(value).toLocaleString(), 'Count'];
+                    return [Number(value as number).toLocaleString(), 'Count'];
                   }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(255, 255, 255, 0.98)',
