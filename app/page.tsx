@@ -315,7 +315,6 @@ export default function Home() {
               <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3 font-semibold">Current Signups</p>
               <div className="text-7xl md:text-8xl font-bold text-gray-900 dark:text-white mb-6">
                 {typeof window !== 'undefined' ? (
-                  // @ts-ignore react-odometerjs typing isn't strict here
                   <Odometer value={currentCount} format="(,ddd)" duration={2000} />
                 ) : (
                   currentCount.toLocaleString()
