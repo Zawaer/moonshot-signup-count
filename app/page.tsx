@@ -20,8 +20,8 @@ interface DataPoint {
 
 interface Stats {
   totalSignups: number;
-  growthRate: number;
   averagePerHour: number;
+  peakSignupsPerHour: number;
   estimatedCompletion: Date | null;
   daysRemaining: number;
   lastDayGrowth: number;
@@ -33,7 +33,7 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [timeRange, setTimeRange] = useState<'all' | '7d' | '24h'>('all');
+  const [timeRange, setTimeRange] = useState<'all' | '7d' | '24h' | '1h'>('all');
   const TARGET_SIGNUPS = 5000;
 
   useEffect(() => {
@@ -76,45 +76,61 @@ export default function Home() {
           const diffMs = now.getTime() - lastUpdateTime.getTime();
           const diffMins = Math.floor(diffMs / 60000);
 
-          setLastUpdated(diffMins === 0 ? 'just now' : `${diffMins} min ago`);
+          setLastUpdated(diffMins === 0 ? 'now' : `${diffMins} min ago`);
 
-          // Calculate statistics
-          if (parsedData.length > 1) {
-            const first = parsedData[0];
-            const timeDiff = lastUpdateTime.getTime() - new Date(first.timestamp).getTime();
-            const hoursDiff = timeDiff / (1000 * 60 * 60);
-            const signupDiff = latest.count - first.count;
-            const avgPerHour = signupDiff / hoursDiff;
+            // Calculate statistics (average rate, last-24h growth, peak signups/hour, estimate)
+            if (parsedData.length > 1) {
+              const first = parsedData[0];
+              const timeDiff = lastUpdateTime.getTime() - new Date(first.timestamp).getTime();
+              const hoursDiff = timeDiff / (1000 * 60 * 60);
+              const signupDiff = latest.count - first.count;
+              const avgPerHour = signupDiff / Math.max(hoursDiff, 1e-6);
 
-            // Calculate last 24 hours growth
-            const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
-            const recentData = parsedData.filter(d => new Date(d.timestamp).getTime() >= oneDayAgo);
-            const lastDayGrowth = recentData.length > 1
-              ? recentData[recentData.length - 1].count - recentData[0].count
-              : 0;
+              // per-interval per-hour rates (consecutive points)
+              // Only consider intervals of at least 5 minutes to avoid extrapolating from very short bursts
+              const perHourRates: number[] = [];
+              const minIntervalHours = 5 / 60; // 5 minutes minimum
+              
+              for (let k = 1; k < parsedData.length; k++) {
+                const prev = parsedData[k - 1];
+                const cur = parsedData[k];
+                const dtHours = (new Date(cur.timestamp).getTime() - new Date(prev.timestamp).getTime()) / (1000 * 60 * 60);
+                
+                // Only count intervals of at least 5 minutes to get meaningful hourly rates
+                if (dtHours >= minIntervalHours) {
+                  perHourRates.push((cur.count - prev.count) / dtHours);
+                }
+              }
 
-            // Estimate completion date
-            const remaining = TARGET_SIGNUPS - latest.count;
-            let estimatedCompletion = null;
-            let daysRemaining = 0;
+              const peakHourly = perHourRates.length ? Math.max(...perHourRates) : 0;
 
-            if (avgPerHour > 0 && remaining > 0) {
-              const hoursRemaining = remaining / avgPerHour;
-              daysRemaining = Math.ceil(hoursRemaining / 24);
-              estimatedCompletion = new Date(now.getTime() + (hoursRemaining * 60 * 60 * 1000));
+              // Calculate last 24 hours growth
+              const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
+              const recentData = parsedData.filter(d => new Date(d.timestamp).getTime() >= oneDayAgo);
+              const lastDayGrowth = recentData.length > 1
+                ? recentData[recentData.length - 1].count - recentData[0].count
+                : 0;
+
+              // Estimate completion date
+              const remaining = TARGET_SIGNUPS - latest.count;
+              let estimatedCompletion = null;
+              let daysRemaining = 0;
+
+              if (avgPerHour > 0 && remaining > 0) {
+                const hoursRemaining = remaining / avgPerHour;
+                daysRemaining = Math.ceil(hoursRemaining / 24);
+                estimatedCompletion = new Date(now.getTime() + (hoursRemaining * 60 * 60 * 1000));
+              }
+
+              setStats({
+                totalSignups: latest.count,
+                peakSignupsPerHour: Math.max(0, peakHourly),
+                averagePerHour: avgPerHour,
+                estimatedCompletion,
+                daysRemaining,
+                lastDayGrowth
+              });
             }
-
-            const growthRate = (signupDiff / first.count) * 100;
-
-            setStats({
-              totalSignups: latest.count,
-              growthRate,
-              averagePerHour: avgPerHour,
-              estimatedCompletion,
-              daysRemaining,
-              lastDayGrowth
-            });
-          }
         }
 
         setLoading(false);
@@ -188,8 +204,17 @@ export default function Home() {
     if (timeRange === 'all') return data;
 
     const now = new Date().getTime();
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const cutoff = timeRange === '7d' ? now - (7 * msPerDay) : now - msPerDay;
+    const msPerHour = 60 * 60 * 1000;
+    const msPerDay = 24 * msPerHour;
+    
+    let cutoff: number;
+    if (timeRange === '1h') {
+      cutoff = now - msPerHour;
+    } else if (timeRange === '7d') {
+      cutoff = now - (7 * msPerDay);
+    } else {
+      cutoff = now - msPerDay;
+    }
 
     return data.filter(d => new Date(d.timestamp).getTime() >= cutoff);
   };
@@ -206,15 +231,16 @@ export default function Home() {
     const lastTs = new Date(points[points.length - 1].timestamp).getTime();
     const span = lastTs - firstTs;
 
-    const minute = 60 * 1000;
-    const hour = 60 * minute;
-    const day = 24 * hour;
+  const minute = 60 * 1000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
 
-    // Choose bucket size based on span
-    let bucketMs = hour; // default 1 hour
-    if (span <= day) bucketMs = 10 * minute; // within 24h -> 10 minute buckets
-    else if (span <= 7 * day) bucketMs = hour; // within 7d -> hourly
-    else bucketMs = day; // longer -> daily
+  // Choose bucket size based on span. Use finer resolution for very short spans (1h -> 1 minute)
+  let bucketMs = hour; // default 1 hour
+  if (span <= hour) bucketMs = minute; // within 1h -> 1 minute buckets
+  else if (span <= day) bucketMs = 10 * minute; // within 24h -> 10 minute buckets
+  else if (span <= 7 * day) bucketMs = hour; // within 7d -> hourly
+  else bucketMs = day; // longer -> daily
 
     const resampled: { timestamp: string; count: number | null }[] = [];
     let j = 0;
@@ -272,7 +298,7 @@ export default function Home() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <div className="w-16 h-16 mx-auto mb-4 border-t-4 border-b-4 border-blue-600 rounded-full animate-spin"></div>
           <p className="text-xl font-medium text-gray-700 dark:text-gray-200">Loading analytics...</p>
         </div>
       </div>
@@ -281,53 +307,59 @@ export default function Home() {
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800">
-      <main className="w-full max-w-7xl mx-auto">
+      <main className="w-full mx-auto max-w-7xl">
         {/* Enhanced Header */}
-        <div className="mb-8 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-              <div className="flex items-center gap-3 mb-2">
-                <img src="/favicon.ico" alt="App icon" className="w-12 h-12" />
-                <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white">
-                    Moonshot Signup Counter
-                  </h1>
-                  </div>
-              </div>
-              <p className="text-base text-gray-600 dark:text-gray-400 mt-2">
-                Comprehensive signup tracking and growth projections
+        <div className="p-8 mb-8 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+          <div className="flex flex-row items-center">
+            <div className='flex flex-col justify-between w-full'>
+              <h1 className="flex-1 min-w-0 mr-4 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
+                Moonshot Signup Counter
+              </h1>
+              <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
+                Realtime analytics for signups to <a href='https://moonshot.hackclub.com/' className='text-white'>Moonshot</a>
               </p>
             </div>
+            <a
+              href="https://github.com/Zawaer/moonshot-signup-counter"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Open project on GitHub (new tab)"
+              className="flex-shrink-0 p-2 ml-2 text-gray-900 transition-colors rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            >
+              <svg height="64" width="64" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="block">
+                <path d="M12 1C5.923 1 1 5.923 1 12c0 4.867 3.149 8.979 7.521 10.436.55.096.756-.233.756-.522 0-.262-.013-1.128-.013-2.049-2.764.509-3.479-.674-3.699-1.292-.124-.317-.66-1.293-1.127-1.554-.385-.207-.936-.715-.014-.729.866-.014 1.485.797 1.691 1.128.99 1.663 2.571 1.196 3.204.907.096-.715.385-1.196.701-1.471-2.448-.275-5.005-1.224-5.005-5.432 0-1.196.426-2.186 1.128-2.956-.111-.275-.496-1.402.11-2.915 0 0 .921-.288 3.024 1.128a10.193 10.193 0 0 1 2.75-.371c.936 0 1.871.123 2.75.371 2.104-1.43 3.025-1.128 3.025-1.128.605 1.513.221 2.64.111 2.915.701.77 1.127 1.747 1.127 2.956 0 4.222-2.571 5.157-5.019 5.432.399.344.743 1.004.743 2.035 0 1.471-.014 2.654-.014 3.025 0 .289.206.632.756.522C19.851 20.979 23 16.854 23 12c0-6.077-4.922-11-11-11Z"></path>
+              </svg>
+            </a>
           </div>
         </div>
 
         {/* Main Stats Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
           {/* Current Count - Hero Card */}
-          <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
+          <div className="p-8 bg-white border border-gray-200 shadow-lg lg:col-span-2 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
             <div className="text-center">
-              <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3 font-semibold">Current Signups</p>
-              <div className="text-7xl md:text-8xl font-bold text-gray-900 dark:text-white mb-6">
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Current Signups</p>
+              <div className="mb-6 font-bold text-gray-900 text-7xl md:text-8xl dark:text-white">
                 {typeof window !== 'undefined' ? (
-                  <Odometer value={currentCount} format="(,ddd)" duration={2000} />
+                  <Odometer value={currentCount} format="d" duration={2000} />
                 ) : (
-                  currentCount.toLocaleString()
+                  currentCount
                 )}
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-2xl h-6 mb-3 overflow-hidden">
+              <div className="w-full h-6 mb-3 overflow-hidden bg-gray-200 dark:bg-gray-700 rounded-2xl">
                 <div
-                  className="bg-blue-600 h-6 rounded-lg transition-all duration-1000 ease-out flex items-center justify-end pr-2"
+                  className="flex items-center justify-end h-6 pr-2 transition-all duration-1000 ease-out bg-blue-600 rounded-lg"
                   style={{ width: `${Math.min(percentage, 100)}%` }}
                 >
                   <span className="text-white text-[10px] font-semibold">{percentage.toFixed(1)}%</span>
                 </div>
               </div>
 
-              <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400 mb-4">
+              <div className="flex justify-between mb-4 text-xs text-gray-600 dark:text-gray-400">
                 <span>0</span>
-                <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS.toLocaleString()}</span>
+                <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS}</span>
               </div>
 
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -339,24 +371,24 @@ export default function Home() {
           </div>
 
           {/* Prediction Card */}
-          <div className="bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-2xl shadow-lg p-8 text-white">
+          <div className="p-8 text-white shadow-lg bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-2xl">
             <div className="mb-6">
-              <h3 className="text-xl font-semibold mb-1">Goal projection</h3>
-              <div className="h-px bg-white/20 w-16"></div>
+              <h3 className="mb-1 text-xl font-semibold">Goal projection</h3>
+              <div className="w-16 h-px bg-white/20"></div>
             </div>
 
             {stats?.estimatedCompletion && stats.daysRemaining > 0 ? (
               <>
-                <p className="text-xs opacity-80 mb-2 uppercase tracking-wide">Estimated completion</p>
-                <p className="text-lg font-semibold mb-6">{formatDate(stats.estimatedCompletion)}</p>
+                <p className="mb-2 text-xs tracking-wide uppercase opacity-80">Estimated completion</p>
+                <p className="mb-6 text-lg font-semibold">{formatDate(stats.estimatedCompletion)}</p>
 
-                <div className="bg-white/10 rounded-xl p-6 backdrop-blur-sm border border-white/20">
-                  <p className="text-5xl font-bold mb-2">{stats.daysRemaining}</p>
-                  <p className="text-sm opacity-90 uppercase tracking-wide">Days remaining</p>
+                <div className="p-6 border bg-white/10 rounded-xl backdrop-blur-sm border-white/20">
+                  <p className="mb-2 text-5xl font-bold">{stats.daysRemaining}</p>
+                  <p className="text-sm tracking-wide uppercase opacity-90">Days remaining</p>
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-white/20">
-                  <p className="text-xs opacity-75">Based on current growth rate of {stats?.averagePerHour.toFixed(0)}/hour</p>
+                <div className="pt-4 mt-4 border-t border-white/20">
+                  <p className="text-xs opacity-75">Based on current signup rate of {stats?.averagePerHour.toFixed(1)}/hour</p>
                 </div>
               </>
             ) : (
@@ -366,35 +398,35 @@ export default function Home() {
         </div>
 
         {/* Detailed Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
-              <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Growth Rate</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                +{stats?.growthRate.toFixed(1)}%
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Total growth since start</p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
-              <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Avg per Hour</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {stats?.averagePerHour.toFixed(0)}
-              </p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Average signup rate</p>
-            </div>
-
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
-              <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Last 24 Hours</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
+        <div className="grid grid-cols-2 gap-6 mb-6 lg:grid-cols-4">
+            <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Last 24 Hours</p>
+              <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
                 +{stats?.lastDayGrowth || 0}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">New signups today</p>
             </div>
 
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
-              <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Remaining</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
-                {(TARGET_SIGNUPS - currentCount).toLocaleString()}
+            <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Avg per Hour</p>
+              <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
+                {stats?.averagePerHour.toFixed(1)}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Average signup rate</p>
+            </div>
+
+            <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Peak per hour</p>
+              <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
+                {stats?.peakSignupsPerHour != null ? stats.peakSignupsPerHour.toFixed(0) : '—'}
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Highest observed signups per hour</p>
+            </div>
+
+            <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Remaining</p>
+              <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
+                {TARGET_SIGNUPS - currentCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">To reach target</p>
             </div>
@@ -402,18 +434,28 @@ export default function Home() {
         
 
         {/* Chart Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6 pb-4 border-b border-gray-200 dark:border-gray-700 gap-4">
+        <div className="p-8 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+          <div className="flex flex-col gap-4 pb-4 mb-6 border-b border-gray-200 md:flex-row md:items-center md:justify-between dark:border-gray-700">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+              <h2 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
                 Signup history
               </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Historical trend analysis</p>
             </div>
 
             <div className="flex items-center gap-3">
               {/* Time Range Filter */}
-              <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              <div className="flex p-1 bg-gray-100 rounded-lg dark:bg-gray-700">
+                <button
+                  onClick={() => setTimeRange('1h')}
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    timeRange === '1h'
+                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  1 hour
+                </button>
+
                 <button
                   onClick={() => setTimeRange('24h')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
@@ -446,7 +488,7 @@ export default function Home() {
                 </button>
               </div>
 
-              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg font-medium">
+              <span className="px-4 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg dark:text-gray-400 dark:bg-gray-700">
                 {filteredData.length} records
               </span>
             </div>
@@ -490,9 +532,9 @@ export default function Home() {
                       const p = props as { label?: number } | undefined;
                       const idx = Number(p?.label ?? NaN);
                       const interp = interpolateAtIndex(idx);
-                      return interp === null ? ['No data', 'Count'] : [interp.toLocaleString(), 'Count'];
+                      return interp === null ? ['No data', 'Signups'] : [interp, 'Signups'];
                     }
-                    return [Number(value as number).toLocaleString(), 'Count'];
+                    return [Number(value as number), 'Signups'];
                   }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(255, 255, 255, 0.98)',
@@ -529,11 +571,11 @@ export default function Home() {
         </div>
 
         {/* Additional Info Section */}
-        <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Key insights</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="p-6 mt-6 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">Key insights</h3>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="flex items-start gap-3">
-                <div className="h-10 w-10 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg dark:bg-blue-900/30">
                   <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
@@ -541,13 +583,13 @@ export default function Home() {
                 <div>
                   <p className="text-sm font-semibold text-gray-900 dark:text-white">Tracking started</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {data.length > 0 ? new Date(data[0].timestamp).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : 'N/A'}
+                    October 7th, 2025
                   </p>
                 </div>
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="h-10 w-10 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-green-100 rounded-lg dark:bg-green-900/30">
                   <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
@@ -561,7 +603,7 @@ export default function Home() {
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="h-10 w-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg dark:bg-purple-900/30">
                   <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
