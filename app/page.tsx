@@ -11,7 +11,10 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Because Odometer.js requires document object, load it dynamically (client-side only)
-const Odometer = dynamic(() => import('react-odometerjs'), { ssr: false, loading: () => null });
+const Odometer = dynamic(() => import('react-odometerjs'), { 
+  ssr: false, 
+  loading: () => <span className="odometer">0</span> 
+});
 
 interface DataPoint {
   timestamp: string;
@@ -69,7 +72,10 @@ export default function Home() {
         // Get the latest count
         if (parsedData.length > 0) {
           const latest = parsedData[parsedData.length - 1];
-          setCurrentCount(latest.count);
+          // Delay setting the count slightly to allow odometer to mount first
+          setTimeout(() => {
+            setCurrentCount(latest.count);
+          }, 500);
 
           // Calculate time difference
           const lastUpdateTime = new Date(latest.timestamp);
@@ -340,18 +346,14 @@ export default function Home() {
           <div className="p-8 bg-white border border-gray-200 shadow-lg lg:col-span-2 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
             <div className="text-center">
               <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Current Signups</p>
-              <div className="mb-6 font-bold text-gray-900 text-7xl md:text-8xl dark:text-white">
-                {typeof window !== 'undefined' ? (
-                  <Odometer value={currentCount} format="d" duration={2000} />
-                ) : (
-                  currentCount
-                )}
+              <div className="mb-6 font-bold text-gray-900 text-7xl md:text-8xl dark:text-white min-h-[6rem] md:min-h-[8rem] flex items-center justify-center">
+                <Odometer value={currentCount} format="d" duration={2000} />
               </div>
 
               {/* Progress Bar */}
               <div className="w-full h-10 mb-3 overflow-hidden bg-gray-200 rounded-full dark:bg-gray-700">
                 <div
-                  className="flex items-center justify-end h-10 pr-1 transition-all duration-1000 ease-out bg-blue-600 rounded-lg md:pr-2"
+                  className="flex items-center justify-end h-10 pr-1 transition-all ease-out bg-blue-600 rounded-lg duration-2000 md:pr-2"
                   style={{ width: `${Math.min(percentage, 100)}%` }}
                 >
                   <span className="font-semibold text-white">{percentage.toFixed(1)}%</span>
@@ -373,15 +375,15 @@ export default function Home() {
 
           {/* Prediction Card */}
           <div className="p-8 text-white shadow-lg bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-2xl">
-            <div className="mb-6">
-              <h3 className="mb-1 text-xl font-semibold">Goal projection</h3>
-              <div className="w-16 h-px bg-white/20"></div>
+            <div className="mb-4">
+              <h3 className="mb-4 text-xl font-semibold">Goal projection</h3>
+              <div className="w-full h-px bg-white/20"></div>
             </div>
 
             {stats?.estimatedCompletion && stats.daysRemaining > 0 ? (
               <>
                 <p className="mb-2 text-xs tracking-wide uppercase opacity-80">Estimated completion</p>
-                <p className="mb-6 text-lg font-semibold">{formatDate(stats.estimatedCompletion)}</p>
+                <p className="mb-4 text-lg font-semibold">{formatDate(stats.estimatedCompletion)}</p>
 
                 <div className="p-6 border bg-white/10 rounded-xl backdrop-blur-sm border-white/20">
                   <p className="mb-2 text-5xl font-bold">{stats.daysRemaining}</p>
@@ -436,7 +438,7 @@ export default function Home() {
 
         {/* Chart Card */}
         <div className="p-2 bg-white border border-gray-200 shadow-lg md:p-8 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-          <div className="flex flex-col gap-4 p-8 mb-6 border-b border-gray-200 md:p-0 md:pb-8 md:flex-row md:items-center md:justify-between dark:border-gray-700">
+          <div className="flex flex-col gap-4 p-4 mb-6 border-b border-gray-200 md:p-0 md:pb-8 md:flex-row md:items-center md:justify-between dark:border-gray-700">
             <div>
               <h2 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
                 Signup history
