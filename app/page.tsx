@@ -294,7 +294,7 @@ export default function Home() {
                 </div>
                 <div>
                   <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white">
-                    Moonshot Signup Count
+                    Moonshot Signup Counter
                   </h1>
                   </div>
               </div>
