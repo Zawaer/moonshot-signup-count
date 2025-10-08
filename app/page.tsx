@@ -351,7 +351,7 @@ export default function Home() {
               {/* Progress Bar */}
               <div className="w-full h-10 mb-3 overflow-hidden bg-gray-200 rounded-full dark:bg-gray-700">
                 <div
-                  className="flex items-center justify-end h-10 pr-2 transition-all duration-1000 ease-out bg-blue-600 rounded-lg"
+                  className="flex items-center justify-end h-10 pr-1 transition-all duration-1000 ease-out bg-blue-600 rounded-lg md:pr-2"
                   style={{ width: `${Math.min(percentage, 100)}%` }}
                 >
                   <span className="font-semibold text-white">{percentage.toFixed(1)}%</span>
@@ -363,7 +363,7 @@ export default function Home() {
                 <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS}</span>
               </div>
 
-              <div className="pt-10 border-t border-gray-200 dark:border-gray-700">
+              <div className="pt-8 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Updated {lastUpdated}
                 </p>
@@ -435,8 +435,8 @@ export default function Home() {
         
 
         {/* Chart Card */}
-        <div className="p-8 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-          <div className="flex flex-col gap-4 pb-4 mb-6 border-b border-gray-200 md:flex-row md:items-center md:justify-between dark:border-gray-700">
+        <div className="p-2 bg-white border border-gray-200 shadow-lg md:p-8 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+          <div className="flex flex-col gap-4 p-8 mb-6 border-b border-gray-200 md:p-0 md:pb-8 md:flex-row md:items-center md:justify-between dark:border-gray-700">
             <div>
               <h2 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
                 Signup history
@@ -489,7 +489,7 @@ export default function Home() {
                 </button>
               </div>
 
-              <span className="px-4 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg dark:text-gray-400 dark:bg-gray-700">
+              <span className="hidden px-4 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg md:inline-flex dark:text-gray-400 dark:bg-gray-700">
                 {filteredData.length} records
               </span>
             </div>
@@ -573,7 +573,7 @@ export default function Home() {
 
         {/* Additional Info Section */}
         <div className="p-6 mt-6 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">Key insights</h3>
+            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">Details</h3>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="flex items-start gap-3">
                 <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg dark:bg-blue-900/30">
