@@ -43,7 +43,7 @@ export default function Home() {
         const { data: signupData, error } = await supabase
           .from('signups')
           .select('timestamp, count')
-          .order('timestamp', { ascending: false });
+          .order('timestamp', { ascending: true });
 
         if (error) {
           console.error('Error fetching from Supabase:', error);
@@ -302,8 +302,6 @@ export default function Home() {
                 Comprehensive signup tracking and growth projections
               </p>
             </div>
-
-            {/* (details always visible) */}
           </div>
         </div>
 
