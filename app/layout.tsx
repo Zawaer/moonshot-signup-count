@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Moonshot Signup Counter",
-  description: "Realtime data and history for Moonshot signups",
+  description: "Realtime analytics for Moonshot signups",
 };
 
 export default function RootLayout({

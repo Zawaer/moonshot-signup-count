@@ -35,6 +35,7 @@ export default function Home() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [timeRange, setTimeRange] = useState<'all' | '7d' | '24h' | '1h'>('all');
   const TARGET_SIGNUPS = 5000;
+  const LAUNCH_DATE = new Date('2025-10-07T00:30:00Z');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -76,7 +77,7 @@ export default function Home() {
           const diffMs = now.getTime() - lastUpdateTime.getTime();
           const diffMins = Math.floor(diffMs / 60000);
 
-          setLastUpdated(diffMins === 0 ? 'now' : `${diffMins} min ago`);
+          setLastUpdated(diffMins === 0 ? '< 1 min ago' : `${diffMins} min ago`);
 
             // Calculate statistics (average rate, last-24h growth, peak signups/hour, estimate)
             if (parsedData.length > 1) {
@@ -163,7 +164,7 @@ export default function Home() {
             const newCount = Number(raw as number | string);
             if (!isNaN(newCount)) {
               setCurrentCount(newCount);
-              setLastUpdated('just now');
+              setLastUpdated('< 1 min ago');
             }
           } catch {
             // Ignore malformed payloads
@@ -316,7 +317,7 @@ export default function Home() {
                 Moonshot Signup Counter
               </h1>
               <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
-                Realtime analytics for signups to <a href='https://moonshot.hackclub.com/' className='text-white'>Moonshot</a>
+                Realtime analytics for <a href='https://moonshot.hackclub.com/' className='text-white'>Moonshot</a> signups
               </p>
             </div>
             <a
@@ -348,12 +349,12 @@ export default function Home() {
               </div>
 
               {/* Progress Bar */}
-              <div className="w-full h-6 mb-3 overflow-hidden bg-gray-200 dark:bg-gray-700 rounded-2xl">
+              <div className="w-full h-10 mb-3 overflow-hidden bg-gray-200 rounded-full dark:bg-gray-700">
                 <div
-                  className="flex items-center justify-end h-6 pr-2 transition-all duration-1000 ease-out bg-blue-600 rounded-lg"
+                  className="flex items-center justify-end h-10 pr-2 transition-all duration-1000 ease-out bg-blue-600 rounded-lg"
                   style={{ width: `${Math.min(percentage, 100)}%` }}
                 >
-                  <span className="text-white text-[10px] font-semibold">{percentage.toFixed(1)}%</span>
+                  <span className="font-semibold text-white">{percentage.toFixed(1)}%</span>
                 </div>
               </div>
 
@@ -362,9 +363,9 @@ export default function Home() {
                 <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS}</span>
               </div>
 
-              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="pt-10 border-t border-gray-200 dark:border-gray-700">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Last updated: <span className="font-semibold text-gray-700 dark:text-gray-300">{lastUpdated}</span>
+                  Updated {lastUpdated}
                 </p>
               </div>
             </div>
@@ -581,9 +582,9 @@ export default function Home() {
                   </svg>
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Tracking started</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Event launched</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    October 7th, 2025
+                    {formatDate(LAUNCH_DATE)}
                   </p>
                 </div>
               </div>
