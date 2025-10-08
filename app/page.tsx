@@ -1,13 +1,17 @@
-'use client';
+"use client";
 
 import { useEffect, useState } from 'react';
-import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart, Legend } from 'recharts';
+import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import dynamic from 'next/dynamic'
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+// Because Odometer.js requires document object, load it dynamically (client-side only)
+const Odometer = dynamic(() => import('react-odometerjs'), { ssr: false, loading: () => null });
 
 interface DataPoint {
   timestamp: string;
@@ -29,9 +33,8 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [showDetails, setShowDetails] = useState(true);
   const [timeRange, setTimeRange] = useState<'all' | '7d' | '24h'>('all');
-  const TARGET = 5000; // goal
+  const TARGET = 5000; // Goal
 
   useEffect(() => {
     const fetchData = async () => {
@@ -128,6 +131,41 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Realtime subscription: update currentCount when signups table changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('public:signups')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'signups' },
+        (payload: unknown) => {
+          try {
+            const p = payload as { new?: Record<string, unknown>; old?: Record<string, unknown> };
+            const rec = p.new ?? p.old;
+            if (!rec) return;
+            const raw = rec.count as unknown;
+            const newCount = Number(raw as number | string);
+            if (!isNaN(newCount)) {
+              setCurrentCount(newCount);
+              setLastUpdated('just now');
+            }
+          } catch {
+            // Ignore malformed payloads
+          }
+        }
+      );
+
+    channel.subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(channel);
+      } catch {
+        try { channel.unsubscribe(); } catch { }
+      }
+    };
+  }, []);
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
@@ -157,6 +195,78 @@ export default function Home() {
   };
 
   const filteredData = getFilteredData();
+
+  // Resample into regular time buckets but only place a point if there is actual data
+  // in that bucket; otherwise leave the bucket empty (count === null). This prevents
+  // creating fake points in gaps and lets the chart show gaps.
+  const resampleTimeSeries = (points: DataPoint[]) => {
+    if (!points || points.length === 0) return [] as { timestamp: string; count: number | null }[];
+
+    const firstTs = new Date(points[0].timestamp).getTime();
+    const lastTs = new Date(points[points.length - 1].timestamp).getTime();
+    const span = lastTs - firstTs;
+
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+
+    // Choose bucket size based on span
+    let bucketMs = hour; // default 1 hour
+    if (span <= day) bucketMs = 10 * minute; // within 24h -> 10 minute buckets
+    else if (span <= 7 * day) bucketMs = hour; // within 7d -> hourly
+    else bucketMs = day; // longer -> daily
+
+    const resampled: { timestamp: string; count: number | null }[] = [];
+    let j = 0;
+
+    for (let t = firstTs; t <= lastTs; t += bucketMs) {
+      const bucketStart = t;
+      const bucketEnd = t + bucketMs;
+
+      // advance j past any points before this bucket
+      while (j < points.length && new Date(points[j].timestamp).getTime() < bucketStart) j += 1;
+
+      // if there's a point within [bucketStart, bucketEnd) use it; otherwise null
+      if (j < points.length) {
+        const ptTs = new Date(points[j].timestamp).getTime();
+        if (ptTs >= bucketStart && ptTs < bucketEnd) {
+          resampled.push({ timestamp: new Date(bucketStart).toISOString(), count: points[j].count });
+          // consume this point
+          j += 1;
+          continue;
+        }
+      }
+
+      resampled.push({ timestamp: new Date(bucketStart).toISOString(), count: null });
+    }
+
+    return resampled;
+  };
+
+  const resampled = resampleTimeSeries(filteredData);
+  // chartData uses index for even spacing but comes from resampled series to avoid spikes
+  const chartData = resampled.map((d, i) => ({ ...d, index: i }));
+
+  // Helper to interpolate a value at an index when the bucket is null
+  const interpolateAtIndex = (idx: number) => {
+    const i = Math.floor(idx);
+    // find previous non-null
+    let left = i - 1;
+    while (left >= 0 && (chartData[left].count === null || chartData[left].count === undefined)) left -= 1;
+    let right = i + 1;
+    while (right < chartData.length && (chartData[right].count === null || chartData[right].count === undefined)) right += 1;
+
+    const leftVal = left >= 0 ? chartData[left].count as number : null;
+    const rightVal = right < chartData.length ? chartData[right].count as number : null;
+
+    if (leftVal === null && rightVal === null) return null;
+    if (leftVal === null) return rightVal;
+    if (rightVal === null) return leftVal;
+
+    // linear interpolate by index distance
+    const t = (i - left) / (right - left);
+    return Math.round(leftVal + (rightVal - leftVal) * t);
+  };
 
   if (loading) {
     return (
@@ -193,15 +303,7 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Settings Toggle */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowDetails(!showDetails)}
-                className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors text-sm font-medium"
-              >
-                {showDetails ? 'Hide details' : 'Show details'}
-              </button>
-            </div>
+            {/* (details always visible) */}
           </div>
         </div>
 
@@ -212,7 +314,12 @@ export default function Home() {
             <div className="text-center">
               <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-3 font-semibold">Current Signups</p>
               <div className="text-7xl md:text-8xl font-bold text-gray-900 dark:text-white mb-6">
-                {currentCount.toLocaleString()}
+                {typeof window !== 'undefined' ? (
+                  // @ts-ignore react-odometerjs typing isn't strict here
+                  <Odometer value={currentCount} format="(,ddd)" duration={2000} />
+                ) : (
+                  currentCount.toLocaleString()
+                )}
               </div>
 
               {/* Progress Bar */}
@@ -255,11 +362,9 @@ export default function Home() {
                   <p className="text-sm opacity-90 uppercase tracking-wide">Days remaining</p>
                 </div>
 
-                {showDetails && (
-                  <div className="mt-4 pt-4 border-t border-white/20">
-                    <p className="text-xs opacity-75">Based on current growth rate of {stats.averagePerHour.toFixed(1)}/hour</p>
-                  </div>
-                )}
+                <div className="mt-4 pt-4 border-t border-white/20">
+                  <p className="text-xs opacity-75">Based on current growth rate of {stats?.averagePerHour.toFixed(0)}/hour</p>
+                </div>
               </>
             ) : (
               <p className="text-xl font-semibold">Goal achieved</p>
@@ -268,8 +373,7 @@ export default function Home() {
         </div>
 
         {/* Detailed Stats Grid */}
-        {showDetails && (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 hover:shadow-lg transition-shadow">
               <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400 font-semibold mb-3">Growth Rate</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mb-1">
@@ -302,7 +406,7 @@ export default function Home() {
               <p className="text-xs text-gray-500 dark:text-gray-400">To reach target</p>
             </div>
           </div>
-        )}
+        
 
         {/* Chart Card */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8 border border-gray-200 dark:border-gray-700">
@@ -357,7 +461,7 @@ export default function Home() {
 
           <div className="w-full h-96">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={filteredData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#2563eb" stopOpacity={0.6}/>
@@ -366,8 +470,12 @@ export default function Home() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                 <XAxis
-                  dataKey="timestamp"
-                  tickFormatter={formatTime}
+                  dataKey="index"
+                  tickFormatter={(idx) => {
+                    const i = Number(idx);
+                    const point = chartData[i];
+                    return point ? formatTime(point.timestamp) : '';
+                  }}
                   tick={{ fill: '#6b7280', fontSize: 11 }}
                   stroke="#9ca3af"
                 />
@@ -375,8 +483,23 @@ export default function Home() {
                   tick={{ fill: '#6b7280', fontSize: 11 }}
                   stroke="#9ca3af"
                 />
+                
                 <Tooltip
-                  labelFormatter={formatTime}
+                  labelFormatter={(label) => {
+                    // label is the index; map back to timestamp
+                    const i = Number(label);
+                    const p = chartData[i];
+                    return p ? formatTime(p.timestamp) : '';
+                  }}
+                  formatter={(value: any, name: any, props: any) => {
+                    if (value === null || value === undefined) {
+                      // props.label is the index
+                      const idx = Number(props?.label);
+                      const interp = interpolateAtIndex(idx);
+                      return interp === null ? ['No data', 'Count'] : [interp.toLocaleString(), 'Count'];
+                    }
+                    return [Number(value).toLocaleString(), 'Count'];
+                  }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(255, 255, 255, 0.98)',
                     border: '1px solid #e5e7eb',
@@ -404,6 +527,7 @@ export default function Home() {
                   fill="url(#colorCount)"
                   dot={false}
                   activeDot={{ r: 5, stroke: '#2563eb', strokeWidth: 2, fill: '#fff' }}
+                  connectNulls={true}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -411,8 +535,7 @@ export default function Home() {
         </div>
 
         {/* Additional Info Section */}
-        {showDetails && (
-          <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
+        <div className="mt-6 bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6 border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Key insights</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="flex items-start gap-3">
@@ -456,7 +579,6 @@ export default function Home() {
               </div>
             </div>
           </div>
-        )}
       </main>
     </div>
   );
