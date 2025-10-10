@@ -8,7 +8,7 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const URL = 'https://moonshot.hackclub.com/api/stats';
+const URL = 'https://moonshot.hackclub.com/api/stats/count';
 const TIMEOUT_SECONDS = 20.0;
 
 async function fetchSignupCount() {
