@@ -16,7 +16,22 @@ A real-time analytics dashboard for tracking Moonshot signup counts with compreh
 
 ## 📊 How It Works
 
-TODO
+This project collects timestamped signup counts, stores them in Supabase, and exposes them to a Next.js frontend for realtime display and analytics. The overall flow is:
+
+- Data collection: a Supabase Edge Function (see `supabase/functions/signup-count-fetcher.ts`) runs on a cron schedule (recommended: every minute). It reads the latest signup total from your source (or computes the delta) and inserts a new row into the `signups` table with the shape: `id` (int8), `count` (int8), `timestamp` (timestamptz).
+
+- Storage & realtime: the `signups` table stores a history of counts. Supabase Realtime and policies are enabled so the frontend can either poll or subscribe to changes.
+
+- Frontend (Next.js): the app in `app/` loads the latest signup record and a history of recent records. The live counter updates automatically (default: refresh/poll every 60s) and can also use Supabase realtime subscriptions to push updates instantly.
+
+- Analytics & projections: the client computes growth metrics from the historical data (e.g., recent growth rate), renders charts (Recharts), shows a progress bar toward the goal (default goal: 5000 signups), and displays a simple projection for the estimated goal completion date based on current trends.
+
+- Deployment: when deploying (Vercel or similar) provide the environment variables `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`. The edge function requires a service-role key for the cron job POST request.
+
+Notes:
+- The edge function file is at `supabase/functions/signup-count-fetcher.ts` in this repo — look there for how counts are fetched and inserted.
+- Ensure the `signups` table has a permissive read policy (or configure RLS appropriately) so the public frontend can read the data.
+- Polling interval and goal value are configurable in the frontend source if you want faster updates or a different goal.
 
 ## 🚀 Run locally
 
