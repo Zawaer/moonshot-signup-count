@@ -61,10 +61,10 @@ export default function Home() {
           return;
         }
 
-        // Transform the data to match our DataPoint interface
+        // Transform the data to match our DataPoint interface and coerce counts to numbers
         const parsedData: DataPoint[] = signupData.map((item) => ({
           timestamp: item.timestamp,
-          count: item.count
+          count: Number(item.count ?? 0)
         }));
 
         setData(parsedData);
@@ -93,23 +93,57 @@ export default function Home() {
               const signupDiff = latest.count - first.count;
               const avgPerHour = signupDiff / Math.max(hoursDiff, 1e-6);
 
-              // per-interval per-hour rates (consecutive points)
-              // Only consider intervals of at least 5 minutes to avoid extrapolating from very short bursts
-              const perHourRates: number[] = [];
-              const minIntervalHours = 5 / 60; // 5 minutes minimum
-              
-              for (let k = 1; k < parsedData.length; k++) {
-                const prev = parsedData[k - 1];
-                const cur = parsedData[k];
-                const dtHours = (new Date(cur.timestamp).getTime() - new Date(prev.timestamp).getTime()) / (1000 * 60 * 60);
-                
-                // Only count intervals of at least 5 minutes to get meaningful hourly rates
-                if (dtHours >= minIntervalHours) {
-                  perHourRates.push((cur.count - prev.count) / dtHours);
-                }
-              }
+              // Compute peak signups per hour using a sliding 1-hour window.
+              // This approach builds a time-sorted series and, for each sample time t, computes
+              // the signups delta between t-1h and t by interpolating counts at the window edges.
+              // It produces a more robust peak-hours estimate than using only consecutive-point rates.
+              const points = parsedData.map(p => ({
+                ts: new Date(p.timestamp).getTime(),
+                count: Number(p.count)
+              }));
 
-              const peakHourly = perHourRates.length ? Math.max(...perHourRates) : 0;
+              const peakHourly = (() => {
+                if (points.length < 2) return 0;
+
+                // Helper to interpolate count at arbitrary timestamp using surrounding points
+                const interpCount = (t: number) => {
+                  // If before first or after last, clamp to endpoint values
+                  if (t <= points[0].ts) return points[0].count;
+                  if (t >= points[points.length - 1].ts) return points[points.length - 1].count;
+
+                  // Binary search for right index
+                  let lo = 0;
+                  let hi = points.length - 1;
+                  while (lo <= hi) {
+                    const mid = Math.floor((lo + hi) / 2);
+                    if (points[mid].ts === t) return points[mid].count;
+                    if (points[mid].ts < t) lo = mid + 1; else hi = mid - 1;
+                  }
+
+                  const right = lo;
+                  const left = right - 1;
+                  const pL = points[left];
+                  const pR = points[right];
+                  const frac = (t - pL.ts) / (pR.ts - pL.ts);
+                  return pL.count + (pR.count - pL.count) * frac;
+                };
+
+                let maxPerHour = 0;
+                const oneHourMs = 60 * 60 * 1000;
+
+                // Evaluate the window ending at each actual sample timestamp (that's sufficient)
+                for (let i = 0; i < points.length; i++) {
+                  const t = points[i].ts;
+                  const t0 = t - oneHourMs;
+                  const cT = interpCount(t);
+                  const cT0 = interpCount(t0);
+                  const delta = cT - cT0;
+                  const perHour = delta; // since window is 1 hour, delta is per-hour
+                  if (perHour > maxPerHour) maxPerHour = perHour;
+                }
+
+                return Math.max(0, maxPerHour);
+              })();
 
               // Calculate last 24 hours growth
               const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
