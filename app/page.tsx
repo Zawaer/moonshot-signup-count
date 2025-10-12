@@ -79,7 +79,7 @@ export default function Home() {
           // Delay setting the count slightly to allow odometer to mount first
           setTimeout(() => {
             setCurrentCount(latest.count);
-          }, 100);
+          }, 300);
 
           // Calculate time difference
           const lastUpdateTime = new Date(latest.timestamp);
