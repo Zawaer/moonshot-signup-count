@@ -77,9 +77,9 @@ export default function Home() {
           setCurrentCount(latest.count);
 
           // Delay setting the count slightly to allow odometer to mount first
-          /*setTimeout(() => {
+          setTimeout(() => {
             setCurrentCount(latest.count);
-          }, 500);*/
+          }, 100);
 
           // Calculate time difference
           const lastUpdateTime = new Date(latest.timestamp);
@@ -384,7 +384,7 @@ export default function Home() {
                     className="flex items-center justify-end h-10 pr-1 transition-all ease-out bg-blue-600 rounded-lg duration-2000 md:pr-2"
                     style={{ width: `${Math.min(percentage, 100)}%` }}
                   >
-                    <span className="font-semibold text-white">{percentage.toFixed(1)}%</span>
+                    <Odometer value={percentage} format="d" animation='count'/>%
                   </div>
                 </div>
 
