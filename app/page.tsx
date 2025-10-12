@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import dynamic from 'next/dynamic'
 import { createClient } from '@supabase/supabase-js';
+import Skeleton, { SkeletonTheme } from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css'
 
 // Initialize Supabase client
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -48,7 +50,9 @@ export default function Home() {
           .from('signups')
           .select('timestamp, count')
           .order('timestamp', { ascending: true });
-
+        
+        await new Promise(f => setTimeout(f, 5000));
+        
         if (error) {
           console.error('Error fetching from Supabase:', error);
           setLoading(false);
@@ -72,10 +76,12 @@ export default function Home() {
         // Get the latest count
         if (parsedData.length > 0) {
           const latest = parsedData[parsedData.length - 1];
+          setCurrentCount(latest.count);
+
           // Delay setting the count slightly to allow odometer to mount first
-          setTimeout(() => {
+          /*setTimeout(() => {
             setCurrentCount(latest.count);
-          }, 500);
+          }, 500);*/
 
           // Calculate time difference
           const lastUpdateTime = new Date(latest.timestamp);
@@ -83,7 +89,7 @@ export default function Home() {
           const diffMs = now.getTime() - lastUpdateTime.getTime();
           const diffMins = Math.floor(diffMs / 60000);
 
-          setLastUpdated(diffMins === 0 ? '< 1 min ago' : `${diffMins} min ago`);
+          setLastUpdated(diffMins === 0 ? "< 1 min ago" : diffMins + "min ago");
 
             // Calculate statistics (average rate, last-24h growth, peak signups/hour, estimate)
             if (parsedData.length > 1) {
@@ -335,119 +341,105 @@ export default function Home() {
     return Math.round(leftVal + (rightVal - leftVal) * t);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800">
-        <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-t-4 border-b-4 border-blue-600 rounded-full animate-spin"></div>
-          <p className="text-xl font-medium text-gray-700 dark:text-gray-200">Loading analytics...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800">
-      <main className="w-full mx-auto max-w-7xl">
-        {/* Enhanced Header */}
-        <div className="p-8 mb-8 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-          <div className="flex flex-row items-center">
-            <div className='flex flex-col justify-between w-full'>
-              <h1 className="flex-1 min-w-0 mr-4 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
-                Moonshot Signup Counter
-              </h1>
-              <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
-                Realtime analytics for <a href='https://moonshot.hackclub.com/' className='text-white'>Moonshot</a> signups
-              </p>
-            </div>
-            <a
-              href="https://github.com/Zawaer/moonshot-signup-counter"
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label="Open project on GitHub (new tab)"
-              className="flex-shrink-0 p-2 ml-2 text-gray-900 transition-colors rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
-            >
-              <svg height="64" width="64" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="block">
-                <path d="M12 1C5.923 1 1 5.923 1 12c0 4.867 3.149 8.979 7.521 10.436.55.096.756-.233.756-.522 0-.262-.013-1.128-.013-2.049-2.764.509-3.479-.674-3.699-1.292-.124-.317-.66-1.293-1.127-1.554-.385-.207-.936-.715-.014-.729.866-.014 1.485.797 1.691 1.128.99 1.663 2.571 1.196 3.204.907.096-.715.385-1.196.701-1.471-2.448-.275-5.005-1.224-5.005-5.432 0-1.196.426-2.186 1.128-2.956-.111-.275-.496-1.402.11-2.915 0 0 .921-.288 3.024 1.128a10.193 10.193 0 0 1 2.75-.371c.936 0 1.871.123 2.75.371 2.104-1.43 3.025-1.128 3.025-1.128.605 1.513.221 2.64.111 2.915.701.77 1.127 1.747 1.127 2.956 0 4.222-2.571 5.157-5.019 5.432.399.344.743 1.004.743 2.035 0 1.471-.014 2.654-.014 3.025 0 .289.206.632.756.522C19.851 20.979 23 16.854 23 12c0-6.077-4.922-11-11-11Z"></path>
-              </svg>
-            </a>
-          </div>
-        </div>
-
-        {/* Main Stats Grid */}
-        <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
-          {/* Current Count - Hero Card */}
-          <div className="p-8 bg-white border border-gray-200 shadow-lg lg:col-span-2 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-            <div className="text-center">
-              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Current Signups</p>
-              <div className="mb-6 font-bold text-gray-900 text-7xl md:text-8xl dark:text-white min-h-[6rem] md:min-h-[8rem] flex items-center justify-center">
-                <Odometer value={currentCount} format="d" duration={2000} />
-              </div>
-
-              {/* Progress Bar */}
-              <div className="w-full h-10 mb-3 overflow-hidden bg-gray-200 rounded-full dark:bg-gray-700">
-                <div
-                  className="flex items-center justify-end h-10 pr-1 transition-all ease-out bg-blue-600 rounded-lg duration-2000 md:pr-2"
-                  style={{ width: `${Math.min(percentage, 100)}%` }}
-                >
-                  <span className="font-semibold text-white">{percentage.toFixed(1)}%</span>
-                </div>
-              </div>
-
-              <div className="flex justify-between mb-4 text-xs text-gray-600 dark:text-gray-400">
-                <span>0</span>
-                <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS}</span>
-              </div>
-
-              <div className="pt-8 border-t border-gray-200 dark:border-gray-700">
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Updated {lastUpdated}
+    <SkeletonTheme baseColor="#374151" highlightColor="#4b5563">
+      <div className="min-h-screen p-4 md:p-8 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-gray-900 dark:to-gray-800">
+        <main className="w-full mx-auto max-w-7xl">
+          {/* Enhanced Header */}
+          <div className="p-8 mb-8 bg-white border border-gray-200 shadow-md hover:shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+            <div className="flex flex-row items-center">
+              <div className='flex flex-col justify-between w-full'>
+                <h1 className="flex-1 min-w-0 mr-4 text-4xl font-bold text-gray-900 md:text-5xl dark:text-white">
+                  Moonshot Signup Counter
+                </h1>
+                <p className="mt-2 text-base text-gray-600 dark:text-gray-400">
+                  Realtime analytics for Moonshot signups
                 </p>
               </div>
+              <a
+                href="https://github.com/Zawaer/moonshot-signup-counter"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Open project on GitHub (new tab)"
+                className="flex-shrink-0 p-2 ml-2 text-gray-900 transition-colors rounded-lg dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                <svg height="64" width="64" aria-hidden="true" viewBox="0 0 24 24" fill="currentColor" className="block">
+                  <path d="M12 1C5.923 1 1 5.923 1 12c0 4.867 3.149 8.979 7.521 10.436.55.096.756-.233.756-.522 0-.262-.013-1.128-.013-2.049-2.764.509-3.479-.674-3.699-1.292-.124-.317-.66-1.293-1.127-1.554-.385-.207-.936-.715-.014-.729.866-.014 1.485.797 1.691 1.128.99 1.663 2.571 1.196 3.204.907.096-.715.385-1.196.701-1.471-2.448-.275-5.005-1.224-5.005-5.432 0-1.196.426-2.186 1.128-2.956-.111-.275-.496-1.402.11-2.915 0 0 .921-.288 3.024 1.128a10.193 10.193 0 0 1 2.75-.371c.936 0 1.871.123 2.75.371 2.104-1.43 3.025-1.128 3.025-1.128.605 1.513.221 2.64.111 2.915.701.77 1.127 1.747 1.127 2.956 0 4.222-2.571 5.157-5.019 5.432.399.344.743 1.004.743 2.035 0 1.471-.014 2.654-.014 3.025 0 .289.206.632.756.522C19.851 20.979 23 16.854 23 12c0-6.077-4.922-11-11-11Z"></path>
+                </svg>
+              </a>
             </div>
           </div>
 
-          {/* Prediction Card */}
-          <div className="p-8 text-white shadow-lg bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-2xl">
-            <div className="mb-4">
-              <h3 className="mb-4 text-xl font-semibold">Goal projection</h3>
-              <div className="w-full h-px bg-white/20"></div>
+          {/* Main Stats Grid */}
+          <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
+            {/* Current Count - Hero Card */}
+            <div className="p-8 bg-white border border-gray-200 shadow-md hover:shadow-lg lg:col-span-2 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+              <div className="text-center">
+                <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Current signups</p>
+                <div className="mb-6 font-bold text-gray-900 text-7xl md:text-8xl dark:text-white min-h-[6rem] md:min-h-[8rem] flex items-center justify-center">
+                  <Odometer value={currentCount} format="d" duration={2000} />
+                </div>
+
+                {/* Progress Bar */}
+                <div className="w-full h-10 mb-3 overflow-hidden bg-gray-200 rounded-full dark:bg-gray-700">
+                  <div
+                    className="flex items-center justify-end h-10 pr-1 transition-all ease-out bg-blue-600 rounded-lg duration-2000 md:pr-2"
+                    style={{ width: `${Math.min(percentage, 100)}%` }}
+                  >
+                    <span className="font-semibold text-white">{percentage.toFixed(1)}%</span>
+                  </div>
+                </div>
+
+                <div className="flex justify-between mb-4 text-xs text-gray-600 dark:text-gray-400">
+                  <span>0</span>
+                  <span className="font-semibold text-blue-600 dark:text-blue-400">Goal: {TARGET_SIGNUPS}</span>
+                </div>
+
+                <div className="pt-8 border-t border-gray-200 dark:border-gray-700">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {loading ? <Skeleton width={200}/> : "Updated " + lastUpdated}
+                  </p>
+                </div>
+              </div>
             </div>
 
-            {stats?.estimatedCompletion && stats.daysRemaining > 0 ? (
-              <>
+            {/* Prediction Card */}
+            <SkeletonTheme baseColor='#cbd5e1' highlightColor='#e2e8f0'>
+              <div className="p-8 text-white shadow-md hover:shadow-lg bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-2xl">
+                <div className="mb-4">
+                  <h3 className="mb-4 text-xl font-semibold">Goal projection</h3>
+                  <div className="w-full h-px bg-white/20"></div>
+                </div>
+
                 <p className="mb-2 text-xs tracking-wide uppercase opacity-80">Estimated completion</p>
-                <p className="mb-4 text-lg font-semibold">{formatDate(stats.estimatedCompletion)}</p>
+                <p className="mb-4 text-lg font-semibold">{loading ? <Skeleton/> : stats?.estimatedCompletion ? formatDate(stats.estimatedCompletion) : "-"}</p>
 
                 <div className="p-6 border bg-white/10 rounded-xl backdrop-blur-sm border-white/20">
-                  <p className="mb-2 text-5xl font-bold">{stats.daysRemaining}</p>
+                  <p className="mb-2 text-5xl font-bold">{stats?.daysRemaining && !loading ? stats.daysRemaining : <Skeleton/>}</p>
                   <p className="text-sm tracking-wide uppercase opacity-90">Days remaining</p>
                 </div>
 
                 <div className="pt-4 mt-4 border-t border-white/20">
-                  <p className="text-xs opacity-75">Based on current signup rate of {stats?.averagePerHour.toFixed(1)}/hour</p>
+                  <p className="text-xs opacity-75">{loading ? <Skeleton/> : "Based on current signup rate of " + stats?.averagePerHour.toFixed(1) + "/hour"}</p>
                 </div>
-              </>
-            ) : (
-              <p className="text-xl font-semibold">Goal achieved</p>
-            )}
+              </div>
+            </SkeletonTheme>
           </div>
-        </div>
 
-        {/* Detailed Stats Grid */}
-        <div className="grid grid-cols-2 gap-6 mb-6 lg:grid-cols-4">
+          {/* Detailed Stats Grid */}
+          <div className="grid grid-cols-2 gap-6 mb-6 lg:grid-cols-4">
             <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
-              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Last 24 Hours</p>
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Last 24 hours</p>
               <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
-                +{stats?.lastDayGrowth || 0}
+                {loading ? <Skeleton/> : stats?.lastDayGrowth}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">New signups today</p>
             </div>
 
             <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
-              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Avg per Hour</p>
+              <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Avg per hour</p>
               <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
-                {stats?.averagePerHour.toFixed(1)}
+                {loading ? <Skeleton/> : stats?.averagePerHour.toFixed(1)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Average signup rate</p>
             </div>
@@ -455,7 +447,7 @@ export default function Home() {
             <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
               <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Peak per hour</p>
               <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
-                {stats?.peakSignupsPerHour != null ? stats.peakSignupsPerHour.toFixed(0) : '—'}
+                {loading ? <Skeleton/> : stats?.peakSignupsPerHour.toFixed(0)}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">Highest observed signups per hour</p>
             </div>
@@ -463,196 +455,200 @@ export default function Home() {
             <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
               <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Remaining</p>
               <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
-                {TARGET_SIGNUPS - currentCount}
+                {loading ? <Skeleton/> : TARGET_SIGNUPS - currentCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">To reach target</p>
             </div>
           </div>
         
 
-        {/* Chart Card */}
-        <div className="p-2 bg-white border border-gray-200 shadow-lg md:p-8 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-          <div className="flex flex-col gap-4 p-4 mb-6 border-b border-gray-200 md:p-0 md:pb-8 md:flex-row md:items-center md:justify-between dark:border-gray-700">
-            <div>
-              <h2 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
-                Signup history
-              </h2>
-            </div>
-
-            <div className="flex items-center gap-3">
-              {/* Time Range Filter */}
-              <div className="flex p-1 bg-gray-100 rounded-lg dark:bg-gray-700">
-                <button
-                  onClick={() => setTimeRange('1h')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    timeRange === '1h'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  1 hour
-                </button>
-
-                <button
-                  onClick={() => setTimeRange('24h')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    timeRange === '24h'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  24 hours
-                </button>
-                <button
-                  onClick={() => setTimeRange('7d')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    timeRange === '7d'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  7 days
-                </button>
-                <button
-                  onClick={() => setTimeRange('all')}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                    timeRange === 'all'
-                      ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
-                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                  }`}
-                >
-                  All time
-                </button>
+          {/* Chart Card */}
+          <div className="p-2 bg-white border border-gray-200 shadow-md hover:shadow-lg md:p-8 dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+            <div className="flex flex-col gap-4 p-4 mb-6 border-b border-gray-200 md:p-0 md:pb-8 md:flex-row md:items-center md:justify-between dark:border-gray-700">
+              <div>
+                <h2 className="mb-1 text-2xl font-bold text-gray-900 dark:text-white">
+                  Signup history
+                </h2>
               </div>
 
-              <span className="hidden px-4 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg md:inline-flex dark:text-gray-400 dark:bg-gray-700">
-                {filteredData.length} records
-              </span>
-            </div>
-          </div>
+              <div className="flex items-center gap-3">
+                {/* Time Range Filter */}
+                <div className="flex p-1 bg-gray-100 rounded-lg dark:bg-gray-700">
+                  <button
+                    onClick={() => setTimeRange('1h')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      timeRange === '1h'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    1 hour
+                  </button>
 
-          <div className="w-full h-96">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#2563eb" stopOpacity={0.6}/>
-                    <stop offset="95%" stopColor="#2563eb" stopOpacity={0.05}/>
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
-                <XAxis
-                  dataKey="index"
-                  tickFormatter={(idx) => {
-                    const i = Number(idx);
-                    const point = chartData[i];
-                    return point ? formatTime(point.timestamp) : '';
-                  }}
-                  tick={{ fill: '#6b7280', fontSize: 11 }}
-                  stroke="#9ca3af"
-                />
-                <YAxis
-                  tick={{ fill: '#6b7280', fontSize: 11 }}
-                  stroke="#9ca3af"
-                />
-                
-                <Tooltip
-                  labelFormatter={(label) => {
-                    // label is the index; map back to timestamp
-                    const i = Number(label);
-                    const p = chartData[i];
-                    return p ? formatTime(p.timestamp) : '';
-                  }}
-                  formatter={(value: unknown, name: unknown, props: unknown) => {
-                    if (value === null || value === undefined) {
-                      // props.label is the index
-                      const p = props as { label?: number } | undefined;
-                      const idx = Number(p?.label ?? NaN);
-                      const interp = interpolateAtIndex(idx);
-                      return interp === null ? ['No data', 'Signups'] : [interp, 'Signups'];
-                    }
-                    return [Number(value as number), 'Signups'];
-                  }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: '8px',
-                    padding: '12px',
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
-                  }}
-                  labelStyle={{
-                    color: '#1f2937',
-                    fontWeight: '600',
-                    marginBottom: '4px',
-                    fontSize: '12px'
-                  }}
-                  itemStyle={{
-                    color: '#2563eb',
-                    fontWeight: '600',
-                    fontSize: '14px'
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#2563eb"
-                  strokeWidth={2.5}
-                  fill="url(#colorCount)"
-                  dot={false}
-                  activeDot={{ r: 5, stroke: '#2563eb', strokeWidth: 2, fill: '#fff' }}
-                  connectNulls={true}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+                  <button
+                    onClick={() => setTimeRange('24h')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      timeRange === '24h'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    24 hours
+                  </button>
+                  <button
+                    onClick={() => setTimeRange('7d')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      timeRange === '7d'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    7 days
+                  </button>
+                  <button
+                    onClick={() => setTimeRange('all')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      timeRange === 'all'
+                        ? 'bg-white dark:bg-gray-600 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    All time
+                  </button>
+                </div>
 
-        {/* Additional Info Section */}
-        <div className="p-6 mt-6 bg-white border border-gray-200 shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
-            <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">Details</h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg dark:bg-blue-900/30">
-                  <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Event launched</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {formatDate(LAUNCH_DATE)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-green-100 rounded-lg dark:bg-green-900/30">
-                  <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Campaign status</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {percentage >= 100 ? 'Completed' : percentage >= 80 ? 'Near completion' : percentage >= 50 ? 'On track' : 'In progress'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3">
-                <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg dark:bg-purple-900/30">
-                  <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Auto refresh</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Every 60 seconds</p>
-                </div>
+                <span className="hidden px-4 py-2 text-xs font-medium text-gray-500 bg-gray-100 rounded-lg md:inline-flex dark:text-gray-400 dark:bg-gray-700">
+                  {loading ? <Skeleton width={70}/> : filteredData.length + " records"}
+                </span>
               </div>
             </div>
+
+            <div className="w-full h-96">
+              { loading ? <Skeleton className='h-96'/> :
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.6}/>
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.05}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
+                    <XAxis
+                      dataKey="index"
+                      tickFormatter={(idx) => {
+                        const i = Number(idx);
+                        const point = chartData[i];
+                        return point ? formatTime(point.timestamp) : '';
+                      }}
+                      tick={{ fill: '#6b7280', fontSize: 11 }}
+                      stroke="#9ca3af"
+                    />
+                    <YAxis
+                      tick={{ fill: '#6b7280', fontSize: 11 }}
+                      stroke="#9ca3af"
+                    />
+                    
+                    <Tooltip
+                      labelFormatter={(label) => {
+                        // label is the index; map back to timestamp
+                        const i = Number(label);
+                        const p = chartData[i];
+                        return p ? formatTime(p.timestamp) : '';
+                      }}
+                      formatter={(value: unknown, name: unknown, props: unknown) => {
+                        if (value === null || value === undefined) {
+                          // props.label is the index
+                          const p = props as { label?: number } | undefined;
+                          const idx = Number(p?.label ?? NaN);
+                          const interp = interpolateAtIndex(idx);
+                          return interp === null ? ['No data', 'Signups'] : [interp, 'Signups'];
+                        }
+                        return [Number(value as number), 'Signups'];
+                      }}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.08)'
+                      }}
+                      labelStyle={{
+                        color: '#1f2937',
+                        fontWeight: '600',
+                        marginBottom: '4px',
+                        fontSize: '12px'
+                      }}
+                      itemStyle={{
+                        color: '#2563eb',
+                        fontWeight: '600',
+                        fontSize: '14px'
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="count"
+                      stroke="#2563eb"
+                      strokeWidth={2.5}
+                      fill="url(#colorCount)"
+                      dot={false}
+                      activeDot={{ r: 5, stroke: '#2563eb', strokeWidth: 2, fill: '#fff' }}
+                      connectNulls={true}
+                      animationDuration={2000}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              }
+            </div>
           </div>
-      </main>
-    </div>
+
+          {/* Additional Info Section */}
+          <div className="p-6 mt-6 bg-white border border-gray-200 shadow-md hover:shadow-lg dark:bg-gray-800 rounded-2xl dark:border-gray-700">
+              <h3 className="mb-4 text-lg font-bold text-gray-900 dark:text-white">Details</h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-blue-100 rounded-lg dark:bg-blue-900/30">
+                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Event launched</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {formatDate(LAUNCH_DATE)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-green-100 rounded-lg dark:bg-green-900/30">
+                    <svg className="w-5 h-5 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Campaign status</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {loading ? <Skeleton/> : percentage >= 100 ? 'Completed' : percentage >= 80 ? 'Near completion' : percentage >= 50 ? 'On track' : 'In progress'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg dark:bg-purple-900/30">
+                    <svg className="w-5 h-5 text-purple-600 dark:text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white">Auto refresh</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Every 60 seconds</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+        </main>
+      </div>
+    </SkeletonTheme>
   );
 }

@@ -28,12 +28,10 @@ export default function RootLayout({
       <head>
         <link rel="stylesheet" href="/odometer-theme-default.css" />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
-        <Analytics />
-      </body>
+        <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+            {children}
+            <Analytics />
+        </body>
     </html>
   );
 }
