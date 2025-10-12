@@ -381,7 +381,7 @@ export default function Home() {
                 {/* Progress Bar */}
                 <div className="w-full h-10 mb-3 overflow-hidden bg-gray-200 rounded-full dark:bg-gray-700">
                   <div
-                    className="flex items-center justify-end h-10 pr-1 transition-all ease-out bg-blue-600 rounded-lg duration-2000 md:pr-2"
+                    className="flex text-white items-center justify-end h-10 pr-1 transition-all ease-out bg-blue-600 rounded-lg duration-2000 md:pr-2"
                     style={{ width: `${Math.min(percentage, 100)}%` }}
                   >
                     <Odometer value={percentage} format="d" animation='count'/>%
