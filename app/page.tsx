@@ -51,8 +51,6 @@ export default function Home() {
           .select('timestamp, count')
           .order('timestamp', { ascending: true });
         
-        await new Promise(f => setTimeout(f, 5000));
-        
         if (error) {
           console.error('Error fetching from Supabase:', error);
           setLoading(false);
