@@ -368,6 +368,18 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Goal reached panel */}
+          {currentCount >= TARGET_SIGNUPS && (
+            <div className="p-6 mb-6 bg-green-50 border border-green-200 rounded-2xl dark:bg-green-900/20 dark:border-green-800">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-4xl font-bold text-green-800 dark:text-green-200">Goal reached</h2>
+                  <p className="mt-2 text-xl text-green-700 dark:text-green-100">Moonshot will be launching soon!</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Main Stats Grid */}
           <div className="grid grid-cols-1 gap-6 mb-6 lg:grid-cols-3">
             {/* Current Count - Hero Card */}
