@@ -280,12 +280,43 @@ export default function Home() {
   const hour = 60 * minute;
   const day = 24 * hour;
 
-  // Choose bucket size based on span. Use finer resolution for very short spans (1h -> 1 minute)
+  // Choose bucket size based on span. Use finer resolution for short spans.
+  // For long spans ("All time") compute a bucket size that targets a reasonable
+  // number of points (so we don't end up with only one point per day). We pick
+  // a target number of points and compute an approximate bucket size, then
+  // enforce sensible minimums (at least 1 hour) to avoid excessive points.
   let bucketMs = hour; // default 1 hour
-  if (span <= hour) bucketMs = minute; // within 1h -> 1 minute buckets
-  else if (span <= day) bucketMs = 10 * minute; // within 24h -> 10 minute buckets
-  else if (span <= 7 * day) bucketMs = hour; // within 7d -> hourly
-  else bucketMs = day; // longer -> daily
+  if (span <= hour) {
+    // within 1h -> 1 minute buckets
+    bucketMs = minute;
+  } else if (span <= day) {
+    // within 24h -> 10 minute buckets
+    bucketMs = 10 * minute;
+  } else if (span <= 7 * day) {
+    // within 7d -> hourly buckets
+    bucketMs = hour;
+  } else {
+    // For longer spans (all-time), choose bucket to target a fixed number of points.
+    // This gives more granularity than one-per-day for multi-week ranges.
+    const TARGET_POINTS = 240; // aim for ~240 points on the chart
+    const approx = Math.ceil(span / TARGET_POINTS);
+
+    // Don't create buckets smaller than 1 hour (avoid very dense data), but allow
+    // sub-day buckets (e.g., 4h, 12h) so multi-week spans show more than one point/day.
+    bucketMs = Math.max(approx, hour);
+
+    // Round bucketMs to a near "nice" interval (hours or days) for cleaner buckets
+    // Convert to hours for easier rounding
+    const approxHours = Math.round(bucketMs / hour);
+    if (approxHours <= 24) {
+      // round to nearest whole hour
+      bucketMs = approxHours * hour;
+    } else {
+      // for very long buckets, round to nearest day
+      const approxDays = Math.max(1, Math.round(approxHours / 24));
+      bucketMs = approxDays * day;
+    }
+  }
 
     const resampled: { timestamp: string; count: number | null }[] = [];
     let j = 0;
@@ -422,10 +453,10 @@ export default function Home() {
                 </div>
 
                 <p className="mb-2 text-xs tracking-wide uppercase opacity-80">Estimated completion</p>
-                <p className="mb-4 text-lg font-semibold">{loading ? <Skeleton/> : stats?.estimatedCompletion ? formatDate(stats.estimatedCompletion) : "-"}</p>
+                <p className="mb-4 text-lg font-semibold">{loading ? <Skeleton/> : stats?.estimatedCompletion ? formatDate(stats.estimatedCompletion) : currentCount >= TARGET_SIGNUPS ? "Completed" : "-"}</p>
 
                 <div className="p-6 border bg-white/10 rounded-xl backdrop-blur-sm border-white/20">
-                  <p className="mb-2 text-5xl font-bold">{stats?.daysRemaining && !loading ? stats.daysRemaining : <Skeleton/>}</p>
+                  <p className="mb-2 text-5xl font-bold">{stats?.daysRemaining && !loading ? stats.daysRemaining : currentCount >= TARGET_SIGNUPS ? "0" : <Skeleton/>}</p>
                   <p className="text-sm tracking-wide uppercase opacity-90">Days remaining</p>
                 </div>
 
@@ -465,7 +496,7 @@ export default function Home() {
             <div className="p-6 transition-shadow bg-white border border-gray-200 shadow-md dark:bg-gray-800 rounded-xl dark:border-gray-700 hover:shadow-lg">
               <p className="mb-3 text-xs font-semibold tracking-widest text-gray-500 uppercase dark:text-gray-400">Remaining</p>
               <p className="mb-1 text-3xl font-bold text-gray-900 dark:text-white">
-                {loading ? <Skeleton/> : TARGET_SIGNUPS - currentCount}
+                {loading ? <Skeleton/> : currentCount >= TARGET_SIGNUPS ? "0" : TARGET_SIGNUPS - currentCount}
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400">To reach target</p>
             </div>
@@ -549,6 +580,7 @@ export default function Home() {
                       tickFormatter={(idx) => {
                         const i = Number(idx);
                         const point = chartData[i];
+                        // For compact X axis ticks use time only, but show full date in tooltip.
                         return point ? formatTime(point.timestamp) : '';
                       }}
                       tick={{ fill: '#6b7280', fontSize: 11 }}
@@ -561,10 +593,10 @@ export default function Home() {
                     
                     <Tooltip
                       labelFormatter={(label) => {
-                        // label is the index; map back to timestamp
+                        // label is the index; map back to timestamp and show full date/time
                         const i = Number(label);
                         const p = chartData[i];
-                        return p ? formatTime(p.timestamp) : '';
+                        return p ? formatDate(new Date(p.timestamp)) : '';
                       }}
                       formatter={(value: unknown, name: unknown, props: unknown) => {
                         if (value === null || value === undefined) {
